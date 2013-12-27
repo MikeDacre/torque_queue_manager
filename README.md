@@ -5,7 +5,7 @@ Simple scripts for interacting with the Gordon cluster.
 
 Currently housed in /home/peanut/gordon_tools
 
-bundler.py
-----------
+ezqsub
+------
 
-Uses GNU parallel to submit jobs to the cluster in batches of 16. Written in python3
+Uses GNU parallel to submit jobs to the cluster in batches of 16. Simple shell script
