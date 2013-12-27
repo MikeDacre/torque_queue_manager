@@ -14,13 +14,13 @@
 #       LICENSE: MIT License
 #       VERSION: 0.1
 #       CREATED: 2013-12-26 17:37
-# Last modified: 2013-12-26 18:03
+# Last modified: 2013-12-27 14:05
 #
 #   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
 #                The file should be one line per job, the lines can be arbitrarily
 #                long and complex bash scripts, just use semi-colons instead of new-
 #                lines.
-#                To modify the qsub parameters, use the -l command, to modify the 
+#                To modify the qsub parameters, use the -l command, to modify the
 #                queue, use the -q command.  Note that the '-l nodes=' qsub Command
 #                will always be '-l nodes=1:native' in this script.  To use multiple
 #                nodes together with MPI, use the bundler.py script.
@@ -30,10 +30,41 @@
 #====================================================================================
 """
 
+import sys
+
 # Set the defaults
 default_address = 'sua131'
 default_queue   = 'normal'
 default_params  = 'walltime=336:00:0'
+
+default_threads = 16
+
+def run_parallel(infile, threads=default_threads, verbose=False, logfile=''):
+    """Take a file path to a file of commands and execute them in parallel.
+       threads variable takes the number of threads to run at once
+
+       Returns a dictionary of results:
+           command -> (output_code, stdout_and_stderr)
+
+       If verbose, results of any failed command will also be logged
+       to logfile (default STDERR)"""
+
+    # We use the multi-threading pool and subprocess for this
+    from subprocess import getstatusoutput as call
+    from multiprocessing import Pool
+    pool = Pool(processes=int(threads))
+
+    # Dictionary to hold results
+    threads = {}
+
+    # Open file, and for each line, split line into list by whitespace
+    # and pass to subprocess via multiprocessing pool
+    with open(infile) as file:
+        for line in file:
+            threads[line] = pool.apply_async(call, line)
+
+    # Run the threads
+
 
 def split_and_submit(infile, queue='normal', params=''):
     """
@@ -41,24 +72,51 @@ def split_and_submit(infile, queue='normal', params=''):
     The file should be one line per job, the lines can be arbitrarily
     long and complex bash scripts, just use semi-colons instead of new-
     lines.
-    You can modify the queue with the queue variable or any other qsub 
+    You can modify the queue with the queue variable or any other qsub
     parameters using the params variable
+
+    The first argument must be an open file handle
     """
+
+def pbs_submit(command, name='', template=''):
+    """Take a command and an optional template and submit it to PBS. Return job number"""
+
+    if not template:
+        template = """#!/bin/bash
+#PBS -S /bin/bash
+"""
+    if not name:
+        name = command
+
+    template = '\n'.join([template, ' '.join(["#PBS -N", name]), "cd $PBS_O_WORKDIR", ''])
+
+    # Open pbs session
+    pbs_command = subprocess.Popen('qsub', stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    # Submit command
+    pbs_command.stdin.write('\n'.join([template, command]).encode())
+    pbs_command.stdin.close()
+
+    # Get job number
+    output = pbs_command.stdout.read().decode().rstrip()
+    pbs_command.stdout.close()
+
+    return output
 
 def _get_args():
     """Command Line Argument Parsing"""
     import argparse, sys
-    
+
     parser = argparse.ArgumentParser(
                  description=__doc__,
                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Optional Files
-    parser.add_argument('-i', '--infile', nargs='?', default=sys.stdin, 
+    parser.add_argument('-i', '--infile', nargs='?', default=sys.stdin,
                         help="Input file, Default STDIN")
-    
+
     # Optional Arguments
-    parser.add_argument('-q', '--queue', default=default_queue, 
+    parser.add_argument('-q', '--queue', default=default_queue,
             help=''.join(["Queue Choice, Default: ", default_queue]) )
     parser.add_argument('-l', '--params', default=default_params,
             help=''.join([ "qsub parameters, Default: ", default_params]) )
@@ -66,7 +124,7 @@ def _get_args():
             help=''.join(["Choose the address to bill to, find this with ",
                           "show_account or on portal.xsedeq.org",
                           ", Default: ", default_address]) )
-    
+
     return parser
 
 # Main function for direct running
@@ -81,13 +139,13 @@ def main():
         infile_string = True
     else:
         infile_string = False
-    
+
     if infile_string:
         with open(args.infile, 'r') as infile:
             split_and_submit(infile, args.queue, args.params)
     else:
         split_and_submit(infile, args.queue, args.params)
-        
+
 
 # The end
 if __name__ == '__main__':
