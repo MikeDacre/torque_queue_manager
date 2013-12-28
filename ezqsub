@@ -14,7 +14,7 @@
 #       LICENSE: MIT License
 #       VERSION: 0.1
 #       CREATED: 2013-12-26 17:37
-# Last modified: 2013-12-27 16:23
+# Last modified: 2013-12-27 17:40
 #
 #   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
 #                The file should be one line per job, the lines can be arbitrarily
@@ -35,14 +35,17 @@ import sys
 # Set the defaults
 default_address  = 'sua131'
 default_queue    = 'normal'
-default_params   = 'walltime=336:00:0'
+default_params   = '-l nodes=1:native,walltime=172800'
 
 default_threads  = 16
 default_commands = 16
 
-def run_parallel(infile, threads=default_threads, verbose=False, logfile=''):
+def run_parallel(infile, threads=default_threads):
     """Take a file path to a file of commands and execute them in parallel.
        threads variable takes the number of threads to run at once
+
+       This should not usually be run directly in this script, it is intended
+       for node running.
 
        Returns a dictionary of results:
            command -> (output_code, stdout_and_stderr)
@@ -75,14 +78,14 @@ def run_parallel(infile, threads=default_threads, verbose=False, logfile=''):
     return results
 
 
-def split(infile, commands=default_commands):
+def split(infile, prefix='job', commands=default_commands):
     """
     Take a file of scripts and split it into temp script files to be submitted
     to the cluster.
     The file should be one line per job, the lines can be arbitrarily
     long and complex bash scripts, just use semi-colons instead of new-
     lines.
-    The commands variable specifies how many lines to create per file, or in 
+    The commands variable specifies how many lines to create per file, or in
     other words, how many jobs to run per node.
     NOTE: If the number of commands is less than the number of processes, the
     extras will be run in series.
@@ -91,7 +94,7 @@ def split(infile, commands=default_commands):
     """
     from tempfile import mkstemp
     import os
-    
+
     outfile_name    = ''
     lines = 0
     files = []
@@ -99,7 +102,7 @@ def split(infile, commands=default_commands):
     for line in infile:
         if not lines:
             lines = commands
-            outfile_name = mkstemp(dir='/tmp', text=True)[1]
+            outfile_name = mkstemp(dir='/tmp', text=True, prefix=prefix)[1]
             files.append(outfile_name)
 
         with open(outfile_name, 'a') as outfile:
@@ -109,46 +112,68 @@ def split(infile, commands=default_commands):
 
     return(files)
 
-def pbs_submit(command, name='', template='', queue='normal', params=''):
-    """ Take a command and an optional template and submit it to PBS.
+def submit_files(file_list, name='job', queue=default_queue, params=default_params, address=default_address, threads=default_threads):
+    """ Take a list of files, and submit each file to qsub
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
+    import subprocess
+    from os import path
 
-    if not template:
-        template = """#!/bin/bash
-#PBS -S /bin/bash
-"""
-    if not name:
-        name = command
+    my_loc = path.realpath(__file__)
 
-    template = '\n'.join([template, ' '.join(["#PBS -N", name]), "cd $PBS_O_WORKDIR", ''])
+    pbs_job_nos = []
 
-    # Open pbs session
-    pbs_command = subprocess.Popen('qsub', stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    job_number = 1
+    for file in file_list:
+        # Create the unique job name
+        job_name = '_'.join([name, str(job_number)])
+        job_number = job_number + 1                                                                                             
 
-    # Submit command
-    pbs_command.stdin.write('\n'.join([template, command]).encode())
-    pbs_command.stdin.close()
+        # Create the virtual file for pbs
+        template = "#!/bin/bash\n#PBS -S /bin/bash\n"
+        template = ''.join([template, "-q ", queue, '\n-N', job_name, '\n-A ',
+                            address, '\n', params, '\n\ncd $PBS_O_WORKDIR\n\n'])
+        template = ''.join([template, my_loc, ' -f ', file, ' -t ', str(threads)])
 
-    # Get job number
-    output = pbs_command.stdout.read().decode().rstrip()
-    pbs_command.stdout.close()
+        # Craft the pbs qsub command
+        pbs_command = ('qsub', '-q', queue, '-N', job_name, '-A', address, params)
 
-    return output
+        # Submit
+        pbs_submit = subprocess.Popen(pbs_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        pbs_submit.stdin.write(template.encode())
+        pbs_submit.stdin.close()
+
+        # Get job number
+        pbs_job_nos.append(pbs_submit.stdout.read().decode().rstrip())
+        pbs_submit.stdout.close()
+
+    return(pbs_job_nos)
 
 def _get_args():
     """Command Line Argument Parsing"""
-    import argparse, sys
+    import argparse
 
     parser = argparse.ArgumentParser(
                  description=__doc__,
                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Optional Files
-    parser.add_argument('-i', '--infile', nargs='?', default=sys.stdin,
+    parser.add_argument('-i', '--infile', nargs='?', default='',
                         help="Input file, Default STDIN")
+    parser.add_argument('-f', '--tmpfile', default='', help=argparse.SUPPRESS)
 
     # Optional Arguments
+    parser.add_argument('-n', '--name', default='job',
+            help="Job Name, will be prefix in qstat. Default: job")
+    parser.add_argument('-t', '--threads', default=default_threads,
+            help=''.join(["Over-ride number of threads per node, should be unnecessary, ",
+                          "Default: ", str(default_threads)]) )
+    parser.add_argument('-c', '--commands', default=default_threads,
+            help=''.join(["Over-ride number of commands per file, if this number ",
+                          "is less than the threads, you will waste resources.  If ",
+                          "this number is greater than the threads, your extra jobs will ",
+                          "queue on the node and execute when there is a free thread. ",
+                          "Default: ", str(default_commands)]) )
     parser.add_argument('-q', '--queue', default=default_queue,
             help=''.join(["Queue Choice, Default: ", default_queue]) )
     parser.add_argument('-l', '--params', default=default_params,
@@ -167,22 +192,33 @@ def main():
     parser = _get_args()
     args = parser.parse_args()
 
-    # Do Stuff
-    if isinstance(args.infile, str):
-        infile_string = True
-    else:
-        infile_string = False
+    # If '-f' is set, we are running on the nodes, so let's just do that
+    if args.tmpfile:
+        results = run_parallel(infile=args.tmpfile, threads=args.threads)
 
-    if infile_string:
-        with open(args.infile, 'r') as infile:
-            split_and_submit(infile, args.queue, args.params)
+        # Loop through outputs and print
+        for name, output in results:
+            print(name, ':\n', 'Result code: ', output[0], '\nOutput:\n\n',
+                    output[1], '\n\n\n', sep='')
+
+    # If '-f' isn't set, we are in normal mode, let's go!
     else:
-        split_and_submit(infile, args.queue, args.params)
+        # Split input file into temp files stored in /tmp
+        if args.infile:
+            with open(args.infile, 'r') as infile:
+                tmpfiles = split(infile=infile, prefix=args.name, commands=args.commands)
+        else:
+            tmpfiles = split(infile=sys.stdin, prefix=args.name, commands=args.commands)
+
+        # Loop through input files and submit via qsub
+        results = submit_files(file_list=tmpfiles, name=args.name, queue=args.queue, params=args.params, address=args.billing, threads=args.threads)
+
+    # Success
+    print("PBS Jobs:")
+    for result in results:
+        print(result)
 
 
 # The end
 if __name__ == '__main__':
-    #print(run_parallel('t.txt'))
-    with open('t.txt') as infile:
-        print(split(infile))
-    #main()
+    main()
