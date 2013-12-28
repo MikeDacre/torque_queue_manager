@@ -1,3 +1,6 @@
+# Test file
+t.txt
+
 *.py[cod]
 
 # C extensions
