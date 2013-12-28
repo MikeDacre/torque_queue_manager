@@ -1,6 +1,9 @@
 # Test file
 t.txt
 
+# PBS files
+*.[eo][0-9]*
+
 *.py[cod]
 
 # C extensions
