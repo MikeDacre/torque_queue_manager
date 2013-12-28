@@ -14,7 +14,7 @@
 #       LICENSE: MIT License
 #       VERSION: 0.1
 #       CREATED: 2013-12-26 17:37
-# Last modified: 2013-12-27 15:15
+# Last modified: 2013-12-27 16:23
 #
 #   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
 #                The file should be one line per job, the lines can be arbitrarily
@@ -33,11 +33,12 @@
 import sys
 
 # Set the defaults
-default_address = 'sua131'
-default_queue   = 'normal'
-default_params  = 'walltime=336:00:0'
+default_address  = 'sua131'
+default_queue    = 'normal'
+default_params   = 'walltime=336:00:0'
 
-default_threads = 16
+default_threads  = 16
+default_commands = 16
 
 def run_parallel(infile, threads=default_threads, verbose=False, logfile=''):
     """Take a file path to a file of commands and execute them in parallel.
@@ -54,40 +55,64 @@ def run_parallel(infile, threads=default_threads, verbose=False, logfile=''):
     from multiprocessing import Pool
     pool = Pool(processes=int(threads))
 
-    # Dictionary to hold results
-    threads = {}
+    # List to hold results
+    threads = []
 
     # Open file, and for each line, split line into list by whitespace
     # and pass to subprocess via multiprocessing pool
     with open(infile) as file:
         for line in file:
-            threads[line.rstrip()] = pool.apply_async(call, line.rstrip())
+            if not line.startswith('#'):
+                command = [line.rstrip()]
+                threads.append( (line.rstrip(), pool.apply_async(call, command)) )
 
     # Run the threads
-    results = {}
-    for name, thread in threads.items():
-        print(name)
-        print(thread)
-        results[name] = thread.get()
+    results = []
+    for name, thread in threads:
+        results.append( (name, thread.get()) )
 
     # Return results
     return results
 
 
-def split_and_submit(infile, queue='normal', params=''):
+def split(infile, commands=default_commands):
     """
-    Take a file of scripts and submit it to the gordon cluster
+    Take a file of scripts and split it into temp script files to be submitted
+    to the cluster.
     The file should be one line per job, the lines can be arbitrarily
     long and complex bash scripts, just use semi-colons instead of new-
     lines.
-    You can modify the queue with the queue variable or any other qsub
-    parameters using the params variable
+    The commands variable specifies how many lines to create per file, or in 
+    other words, how many jobs to run per node.
+    NOTE: If the number of commands is less than the number of processes, the
+    extras will be run in series.
 
     The first argument must be an open file handle
     """
+    from tempfile import mkstemp
+    import os
+    
+    outfile_name    = ''
+    lines = 0
+    files = []
 
-def pbs_submit(command, name='', template=''):
-    """Take a command and an optional template and submit it to PBS. Return job number"""
+    for line in infile:
+        if not lines:
+            lines = commands
+            outfile_name = mkstemp(dir='/tmp', text=True)[1]
+            files.append(outfile_name)
+
+        with open(outfile_name, 'a') as outfile:
+            print(line.rstrip(), file=outfile)
+
+        lines = lines - 1
+
+    return(files)
+
+def pbs_submit(command, name='', template='', queue='normal', params=''):
+    """ Take a command and an optional template and submit it to PBS.
+        You can modify the queue with the queue variable or any other qsub
+        parameters using the params variable """
 
     if not template:
         template = """#!/bin/bash
@@ -157,5 +182,7 @@ def main():
 
 # The end
 if __name__ == '__main__':
-    run_parallel('t.txt')
+    #print(run_parallel('t.txt'))
+    with open('t.txt') as infile:
+        print(split(infile))
     #main()
