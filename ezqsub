@@ -14,7 +14,7 @@
 #       LICENSE: MIT License
 #       VERSION: 0.1
 #       CREATED: 2013-12-26 17:37
-# Last modified: 2013-12-27 18:09
+# Last modified: 2013-12-27 18:12
 #
 #   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
 #                The file should be one line per job, the lines can be arbitrarily
@@ -224,7 +224,7 @@ def main():
     # Success
     print("PBS Jobs:")
     for result in results:
-        print(result)
+        print(result, file=sys.stderr)
 
 
 # The end
