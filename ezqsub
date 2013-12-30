@@ -14,7 +14,7 @@
 #       LICENSE: MIT License
 #       VERSION: 0.1
 #       CREATED: 2013-12-26 17:37
-# Last modified: 2013-12-29 18:24
+# Last modified: 2013-12-29 20:06
 #
 #   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
 #                The file should be one line per job, the lines can be arbitrarily
@@ -83,7 +83,7 @@ def run_parallel(infile, threads=default_threads):
     return results
 
 
-def split(infile, prefix='job', commands=default_commands, tmpdir=default_tmpdir):
+def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=default_tmpdir):
     """
     Take a file of scripts and split it into temp script files to be submitted
     to the cluster.
@@ -103,11 +103,13 @@ def split(infile, prefix='job', commands=default_commands, tmpdir=default_tmpdir
     outfile_name    = ''
     lines = 0
     files = []
+    fd    = ''
 
     for line in infile:
         if not lines:
             lines = commands
-            outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)[1]
+            fd, outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)
+            os.close(fd)
             files.append(os.path.realpath(outfile_name))
 
         with open(outfile_name, 'a') as outfile:
@@ -234,9 +236,9 @@ def main():
         # Split input file into temp files stored in /tmp
         if args.infile:
             with open(args.infile, 'r') as infile:
-                tmpfiles = split(infile=infile, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
+                tmpfiles = split_scripts(infile=infile, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
         else:
-            tmpfiles = split(infile=sys.stdin, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
+            tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
 
         # Loop through input files and submit via qsub
         results = submit_files(file_list=tmpfiles, modules=modules, name=args.name, queue=args.queue, params=args.params, address=args.billing, threads=args.threads)
