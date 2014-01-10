@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-09 16:20
+ Last modified: 2014-01-10 11:36
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -131,7 +131,7 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
     import subprocess
-    from os import path
+    from os import pathi, remove
 
     my_loc = path.realpath(__file__)
 
@@ -168,7 +168,23 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         pbs_job_nos.append(pbs_submit.stdout.read().decode().rstrip())
         pbs_submit.stdout.close()
 
+        # Delete files
+        if not debug:
+            remove(file)
+
     return(pbs_job_nos)
+
+def cleanup_temp(tmpdir=default_tmpdir, prefix='job'):
+    """Delete all files with the job name prefix in provided tempfile"""
+    from os import listdir, remove
+
+    # Get filelist from directory
+    file_list = listdir(tmpdir)
+    
+    # Loop through file list, delete all that start with prefix
+    for file in file_list:
+        if file.startswith(prefix):
+            remove('/'.join([tmpdir,file]))
 
 def _get_args():
     """Command Line Argument Parsing"""
@@ -215,6 +231,14 @@ def _get_args():
             help=''.join(["Choose the address to bill to, find this with ",
                           "show_account or on portal.xsedeq.org",
                           ", Default: ", default_address]) )
+    parser.add_argument('--cleanup', action='store_true',
+            help=''.join(["Cleanup your temporary directory. Please run this every now and ",
+                          "then. IMPORTANT: DO NOT RUN IF YOU HAVE JOBS IN THE QUEUE!!!.",
+                          "Default temp directory: ", default_tmpdir,
+                          "Default prefix: 'job'. If you use the -n flag in any of your ",
+                          "runs, use that same flag. e.g. if you ran with ",
+                          "'ezqsub -n my_job -i my_job_script.txt', cleanup with ",
+                          "'ezqsub -n my_job --cleanup'"]) )
 
     return parser
 
@@ -231,6 +255,11 @@ def main():
         debug = 1
     else:
         debug = 0
+
+    # If cleanup is chosen, do that first
+    if args.cleanup:
+        cleanup_temp(tmpdir=args.tmpdir, prefix=args.name)
+        return
 
     # Turn modules into array - split on space or comma
     modules = []
