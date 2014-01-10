@@ -6,41 +6,43 @@
 #
 # Distributed under terms of the MIT license
 """
-#====================================================================================
-#
-#          FILE: ezqsub (python 3)
-#        AUTHOR: Michael D Dacre, mike.dacre@gmail.com
-#  ORGANIZATION: Stanford University
-#       LICENSE: MIT License
-#       VERSION: 0.1
-#       CREATED: 2013-12-26 17:37
-# Last modified: 2014-01-09 15:59
-#
-#   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
-#                The file should be one line per job, the lines can be arbitrarily
-#                long and complex bash scripts, just use semi-colons instead of new-
-#                lines.
-#                To modify the qsub parameters, use the -l command, to modify the
-#                queue, use the -q command.  Note that the '-l nodes=' qsub Command
-#                will always be '-l nodes=1:native' in this script.  To use multiple
-#                nodes together with MPI, use the bundler.py script.
-#
-#          NOTE: The node string is hardcoded as -l nodes=1:ppn=16,native. To change
-#                this you have to edit the source code variable 'default_nodes'. 
-#                There should never be a reason to do this on Gordon
-#
-#         USAGE: ezqsub script_file.txt or ezqsub < script_file.txt
-#
-#====================================================================================
+====================================================================================
+
+          FILE: ezqsub (python 3)
+        AUTHOR: Michael D Dacre, mike.dacre@gmail.com
+  ORGANIZATION: Stanford University
+       LICENSE: MIT License
+       VERSION: 0.1
+       CREATED: 2013-12-26 17:37
+ Last modified: 2014-01-09 16:20
+
+   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
+                The file should be one line per job, the lines can be arbitrarily
+                long and complex bash scripts, just use semi-colons instead of new-
+                lines.
+                To modify the qsub parameters, use the -l command, to modify the
+                queue, use the -q command.  Note that the '-l nodes=' qsub Command
+                will always be '-l nodes=1:ppn=16:native' in this script.  To use multiple
+                nodes together with MPI, use the bundler.py script.
+
+          NOTE: The node string is hardcoded as -l nodes=1:ppn=16,native. To change
+                this you have to edit the source code variable 'default_nodes'. 
+                There should never be a reason to do this on Gordon
+
+         USAGE: ezqsub script_file.txt or ezqsub < script_file.txt
+
+====================================================================================
 """
 
 import sys, os
+
+debug = 0
 
 # Get user name
 user = os.environ['USER']
 
 # Set the defaults
-default_address  = 'sua133'
+default_address  = 'sua131'
 default_queue    = 'normal'
 default_params   = '-l walltime=172800'
 default_nodes    = '-l nodes=1:ppn=16:native'
@@ -149,10 +151,13 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         for module in modules:
             template = ''.join([template, 'module load ', module, '\n'])
         template = ''.join([template, '\n', my_loc, ' -f ', file, ' -t ', str(threads), '\n'])
-        #print(template)
+        if debug:
+            print(template)
 
         # Craft the pbs qsub command
         pbs_command = ('qsub', '-q', queue, '-N', job_name, '-A', address, default_nodes, params)
+        if debug:
+            print(pbs_command)
 
         # Submit
         pbs_submit = subprocess.Popen(pbs_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -178,6 +183,9 @@ def _get_args():
                         help="Input file, Default STDIN")
     parser.add_argument('-f', '--tmpfile', default='', help=argparse.SUPPRESS)
 
+    # Debugging flag
+    parser.add_argument('-x', '--debug', action='store_true',  help=argparse.SUPPRESS)
+
     # Optional Arguments
     parser.add_argument('-n', '--name', default='job',
             help="Job Name, will be prefix in qstat. Default: job")
@@ -197,8 +205,12 @@ def _get_args():
             help=''.join(["Queue Choice, Default: ", default_queue]) )
     parser.add_argument('-m', '--modules', default=default_modules, nargs='+', 
             help=''.join(["Choose modules to load, Default: ", default_modules]) )
-    parser.add_argument('-l', '--params', default=default_params,
-            help=''.join([ "qsub parameters, Default: ", default_params]) )
+    parser.add_argument('-p', '--params', default=default_params,
+            help=''.join([ "qsub parameters. These are any additional qsub flags you ",
+                           "wish to pass. Note that they should be enclosed in parentheses ",
+                           "e.g. \"-l walltime=1:00:00\", not just plain 'walltime=1:00:00', ",
+                           "If you don't include the flags, it won't work. Default: ",
+                           default_params]) )
     parser.add_argument('-a', '--billing', default=default_address,
             help=''.join(["Choose the address to bill to, find this with ",
                           "show_account or on portal.xsedeq.org",
@@ -212,6 +224,13 @@ def main():
     # Get commandline arguments
     parser = _get_args()
     args = parser.parse_args()
+
+    global debug
+
+    if args.debug:
+        debug = 1
+    else:
+        debug = 0
 
     # Turn modules into array - split on space or comma
     modules = []
