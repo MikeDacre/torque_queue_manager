@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-10 11:36
+ Last modified: 2014-01-10 11:53
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -131,7 +131,7 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
     import subprocess
-    from os import pathi, remove
+    from os import path, remove
 
     my_loc = path.realpath(__file__)
 
