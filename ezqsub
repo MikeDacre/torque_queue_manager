@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-10 11:53
+ Last modified: 2014-01-17 21:10
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -26,7 +26,7 @@
                 nodes together with MPI, use the bundler.py script.
 
           NOTE: The node string is hardcoded as -l nodes=1:ppn=16,native. To change
-                this you have to edit the source code variable 'default_nodes'. 
+                this you have to edit the source code variable 'default_nodes'.
                 There should never be a reason to do this on Gordon
 
          USAGE: ezqsub script_file.txt or ezqsub < script_file.txt
@@ -44,7 +44,8 @@ user = os.environ['USER']
 # Set the defaults
 default_address  = 'sua131'
 default_queue    = 'normal'
-default_params   = '-l walltime=172800'
+default_walltime = '1:00:00'
+default_params   = ''
 default_nodes    = '-l nodes=1:ppn=16:native'
 default_modules  = 'python'
 default_tmpdir   = ''.join(['/oasis/scratch/', user, '/temp_project/'])
@@ -108,12 +109,12 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
     import os
 
     outfile_name    = ''
-    lines = 0
-    files = []
-    fd    = ''
+    filtered_lines  = 0
+    files           = []
+    fd              = ''
 
     for line in infile:
-        if not lines:
+        if not filtered_lineslines:
             lines = commands
             fd, outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)
             os.close(fd)
@@ -122,7 +123,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
         with open(outfile_name, 'a') as outfile:
             print(line.rstrip(), file=outfile)
 
-        lines = lines - 1
+        filtered_lines = filtered_lines - 1
 
     return(files)
 
@@ -141,16 +142,17 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
     for file in file_list:
         # Create the unique job name
         job_name = '_'.join([name, str(job_number)])
-        job_number = job_number + 1                                                                                             
+        job_number = job_number + 1
 
         # Create the virtual file for pbs
         template = "#!/bin/bash\n#PBS -S /bin/bash\n"
-        template = ''.join([template, "#PBS -q ", queue, '\n#PBS -N ', job_name, 
+        template = ''.join([template, "#PBS -q ", queue, '\n#PBS -N ', job_name,
                             '\n#PBS -A ', address, '\n#PBS ', params, '\n#PBS ', default_nodes,
                             '\n\ncd $PBS_O_WORKDIR\n\n'])
         for module in modules:
             template = ''.join([template, 'module load ', module, '\n'])
         template = ''.join([template, '\n', my_loc, ' -f ', file, ' -t ', str(threads), '\n'])
+
         if debug:
             print(template)
 
@@ -180,7 +182,7 @@ def cleanup_temp(tmpdir=default_tmpdir, prefix='job'):
 
     # Get filelist from directory
     file_list = listdir(tmpdir)
-    
+
     # Loop through file list, delete all that start with prefix
     for file in file_list:
         if file.startswith(prefix):
@@ -219,12 +221,14 @@ def _get_args():
                           "Default: ", default_tmpdir]) )
     parser.add_argument('-q', '--queue', default=default_queue,
             help=''.join(["Queue Choice, Default: ", default_queue]) )
-    parser.add_argument('-m', '--modules', default=default_modules, nargs='+', 
+    parser.add_argument('-m', '--modules', default=default_modules, nargs='+',
             help=''.join(["Choose modules to load, Default: ", default_modules]) )
+    parser.add_argument('-w', '--walltime', default='',
+            help=''.join(["Set walltime, use least possible, max=336:00:00, Default: ", default_modules]) )
     parser.add_argument('-p', '--params', default=default_params,
             help=''.join([ "qsub parameters. These are any additional qsub flags you ",
                            "wish to pass. Note that they should be enclosed in parentheses ",
-                           "e.g. \"-l walltime=1:00:00\", not just plain 'walltime=1:00:00', ",
+                           "e.g. \"-l mem=32GB\", not just plain 'mem=32GB', ",
                            "If you don't include the flags, it won't work. Default: ",
                            default_params]) )
     parser.add_argument('-a', '--billing', default=default_address,
@@ -255,6 +259,13 @@ def main():
         debug = 1
     else:
         debug = 0
+
+    # Require walltime for command line run
+    if not args.walltime:
+        print(parser.print_help(), file=sys.stderr)
+        print("Walltime required\nPlease prived a walltime. e.g.:\n",
+              __file__, "-w 1:00:00 -i <script_file>", file=sys.stderr)
+        sys.exit(1)
 
     # If cleanup is chosen, do that first
     if args.cleanup:
