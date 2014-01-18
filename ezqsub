@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-17 21:10
+ Last modified: 2014-01-17 21:51
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -114,8 +114,8 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
     fd              = ''
 
     for line in infile:
-        if not filtered_lineslines:
-            lines = commands
+        if not filtered_lines:
+            filtered_lines = commands
             fd, outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)
             os.close(fd)
             files.append(os.path.realpath(outfile_name))
@@ -127,12 +127,12 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 
     return(files)
 
-def submit_files(file_list, modules=default_modules, name='job', queue=default_queue, params=default_params, address=default_address, threads=default_threads):
+def submit_files(file_list, modules=default_modules, name='job', queue=default_queue, params=default_params, walltime=default_walltime, address=default_address, threads=default_threads):
     """ Take a list of files, and submit each file to qsub
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
     import subprocess
-    from os import path, remove
+    from os import path
 
     my_loc = path.realpath(__file__)
 
@@ -147,8 +147,12 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         # Create the virtual file for pbs
         template = "#!/bin/bash\n#PBS -S /bin/bash\n"
         template = ''.join([template, "#PBS -q ", queue, '\n#PBS -N ', job_name,
-                            '\n#PBS -A ', address, '\n#PBS ', params, '\n#PBS ', default_nodes,
-                            '\n\ncd $PBS_O_WORKDIR\n\n'])
+                            '\n#PBS -A ', address, '\n#PBS ', default_nodes,
+                            '\n#PBS -l walltime=', walltime])
+        if params:
+            template = ''.join([template,'\n#PBS ', params])
+
+        template = ''.join([template, '\n\ncd $PBS_O_WORKDIR\n\n'])
         for module in modules:
             template = ''.join([template, 'module load ', module, '\n'])
         template = ''.join([template, '\n', my_loc, ' -f ', file, ' -t ', str(threads), '\n'])
@@ -157,7 +161,8 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
             print(template)
 
         # Craft the pbs qsub command
-        pbs_command = ('qsub', '-q', queue, '-N', job_name, '-A', address, default_nodes, params)
+        pbs_command = ('qsub', '-q', queue, '-N', name, '-A', address, default_nodes)
+
         if debug:
             print(pbs_command)
 
@@ -169,10 +174,6 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         # Get job number
         pbs_job_nos.append(pbs_submit.stdout.read().decode().rstrip())
         pbs_submit.stdout.close()
-
-        # Delete files
-        if not debug:
-            remove(file)
 
     return(pbs_job_nos)
 
@@ -260,17 +261,17 @@ def main():
     else:
         debug = 0
 
+    # If cleanup is chosen, do that first
+    if args.cleanup:
+        cleanup_temp(tmpdir=args.tmpdir, prefix=args.name)
+        sys.exit(0)
+
     # Require walltime for command line run
     if not args.walltime:
         print(parser.print_help(), file=sys.stderr)
         print("Walltime required\nPlease prived a walltime. e.g.:\n",
               __file__, "-w 1:00:00 -i <script_file>", file=sys.stderr)
         sys.exit(1)
-
-    # If cleanup is chosen, do that first
-    if args.cleanup:
-        cleanup_temp(tmpdir=args.tmpdir, prefix=args.name)
-        return
 
     # Turn modules into array - split on space or comma
     modules = []
@@ -305,7 +306,7 @@ def main():
             tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
 
         # Loop through input files and submit via qsub
-        results = submit_files(file_list=tmpfiles, modules=modules, name=args.name, queue=args.queue, params=args.params, address=args.billing, threads=args.threads)
+        results = submit_files(file_list=tmpfiles, modules=modules, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads)
 
     # Success
     print("PBS Jobs:")
