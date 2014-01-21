@@ -14,16 +14,12 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-17 22:05
+ Last modified: 2014-01-21 07:31
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
                 long and complex bash scripts, just use semi-colons instead of new-
                 lines.
-
-          NOTE: The node string is hardcoded as -l nodes=1:ppn=16,native. To change
-                this you have to edit the source code variable 'default_nodes'.
-                There should never be a reason to do this on Gordon
 
          USAGE: ezqsub script_file.txt or ezqsub < script_file.txt
 
@@ -38,16 +34,15 @@ debug = 0
 user = os.environ['USER']
 
 # Set the defaults
+default_threads  = 16
+default_commands = 16
+
 default_address  = 'sua135'
 default_queue    = 'normal'
 default_walltime = '1:00:00'
 default_params   = ''
-default_nodes    = '-l nodes=1:ppn=16:native'
 default_modules  = 'python'
 default_tmpdir   = ''.join(['/oasis/scratch/', user, '/temp_project/'])
-
-default_threads  = 16
-default_commands = 16
 
 def run_parallel(infile, threads=default_threads):
     """Take a file path to a file of commands and execute them in parallel.
@@ -132,6 +127,8 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
 
     my_loc = path.realpath(__file__)
 
+    node_string = ''.join(['nodes=1:ppn=', threads, ':native'])
+
     pbs_job_nos = []
 
     job_number = 1
@@ -143,7 +140,7 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
         # Create the virtual file for pbs
         template = "#!/bin/bash\n#PBS -S /bin/bash\n"
         template = ''.join([template, "#PBS -q ", queue, '\n#PBS -N ', job_name,
-                            '\n#PBS -A ', address, '\n#PBS ', default_nodes,
+                            '\n#PBS -A ', address, '\n#PBS -l ', node_string,
                             '\n#PBS -l walltime=', walltime])
         if params:
             template = ''.join([template,'\n#PBS ', params])
@@ -157,7 +154,7 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
             print(template)
 
         # Craft the pbs qsub command
-        pbs_command = ('qsub', '-q', queue, '-N', name, '-A', address, default_nodes)
+        pbs_command = ('qsub', '-q', queue, '-N', name, '-A', address, '-l', node_string)
 
         if debug:
             print(pbs_command)
