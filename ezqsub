@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 07:31
+ Last modified: 2014-01-21 07:35
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -204,7 +204,7 @@ def _get_args():
     parser.add_argument('-t', '--threads', default=default_threads,
             help=''.join(["Over-ride number of threads per node, should be unnecessary, ",
                           "Default: ", str(default_threads)]) )
-    parser.add_argument('-c', '--commands', default=default_threads,
+    parser.add_argument('--commands', default=default_threads,
             help=''.join(["Over-ride number of commands per file, if this number ",
                           "is less than the threads, you will waste resources.  If ",
                           "this number is greater than the threads, your extra jobs will ",
