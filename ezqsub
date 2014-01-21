@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 07:38
+ Last modified: 2014-01-21 07:55
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -35,7 +35,7 @@ user = os.environ['USER']
 
 # Set the defaults
 default_threads  = 16
-default_commands = 16
+default_commands = default_threads
 
 default_address  = 'sua135'
 default_queue    = 'normal'
@@ -106,7 +106,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 
     for line in infile:
         if not filtered_lines:
-            filtered_lines = commands
+            filtered_lines = int(commands)
             fd, outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)
             os.close(fd)
             files.append(os.path.realpath(outfile_name))
@@ -207,11 +207,12 @@ def _get_args():
                           "once on a single node. Note that you will still be billed for ",
                           "all ", str(default_threads), " cores. ",
                           "Default: ", str(default_threads)]) )
-    parser.add_argument('--commands', default=default_threads,
-            help=''.join(["Over-ride number of commands per file, if this number ",
-                          "is less than the threads, you will waste resources.  If ",
-                          "this number is greater than the threads, your extra jobs will ",
-                          "queue on the node and execute when there is a free thread. ",
+    parser.add_argument('--commands',
+            help=''.join(["Over-ride number of commands sent to each node. This defaults ",
+                          "to the same as '-t'. If you want less than ", str(default_threads),
+                          "commands to run on a node, you can just set '-t'. If however, ",
+                          "you want jobs to run in serial on a node, this can be a good option. \n",
+                          "This option should be completely unnecessary most of the time\n",
                           "Default: ", str(default_commands)]) )
     parser.add_argument('-d', '--tmpdir', default=default_tmpdir,
             help=''.join(["Where to store job files - you must delete them manually, ",
@@ -291,18 +292,23 @@ def main():
         for name, output in results:
             print(name, ':\n', 'Result code: ', output[0], '\nOutput:\n\n',
                     output[1], '\n\n\n', sep='')
+        sys.exit(0)
 
-    # If '-f' isn't set, we are in normal mode, let's go!
+    # Set number of commands per file
+    if args.commands:
+        commands = args.commands
     else:
-        # Split input file into temp files stored in /tmp
-        if args.infile:
-            with open(args.infile, 'r') as infile:
-                tmpfiles = split_scripts(infile=infile, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
-        else:
-            tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=args.commands, tmpdir=args.tmpdir)
+        commands = args.threads
 
-        # Loop through input files and submit via qsub
-        results = submit_files(file_list=tmpfiles, modules=modules, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads)
+    # Split input file into temp files stored in /tmp
+    if args.infile:
+        with open(args.infile, 'r') as infile:
+            tmpfiles = split_scripts(infile=infile, prefix=args.name, commands=commands, tmpdir=args.tmpdir)
+    else:
+        tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=commands, tmpdir=args.tmpdir)
+
+    # Loop through input files and submit via qsub
+    results = submit_files(file_list=tmpfiles, modules=modules, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads)
 
     # Success
     print("PBS Jobs:")
