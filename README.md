@@ -20,7 +20,6 @@ clears them.  I think this isn't a major issue as these files are so small, but 
 still not ideal.
 
 ```
-
 usage: ezqsub [-h] [-i [INFILE]] [-n NAME] [-t THREADS] [--commands COMMANDS]
               [-d TMPDIR] [-q QUEUE] [-m MODULES [MODULES ...]] [-w WALLTIME]
               [-p PARAMS] [-a BILLING] [--cleanup]
@@ -33,7 +32,7 @@ usage: ezqsub [-h] [-i [INFILE]] [-n NAME] [-t THREADS] [--commands COMMANDS]
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 07:38
+ Last modified: 2014-01-21 07:55
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -54,11 +53,12 @@ optional arguments:
                         this if you want less than 16 to run at once on a
                         single node. Note that you will still be billed for
                         all 16 cores. Default: 16
-  --commands COMMANDS   Over-ride number of commands per file, if this number
-                        is less than the threads, you will waste resources. If
-                        this number is greater than the threads, your extra
-                        jobs will queue on the node and execute when there is
-                        a free thread. Default: 16
+  --commands COMMANDS   Over-ride number of commands sent to each node. This
+                        defaults to the same as '-t'. If you want less than
+                        16commands to run on a node, you can just set '-t'. If
+                        however, you want jobs to run in serial on a node,
+                        this can be a good option. This option should be
+                        completely unnecessary most of the time Default: 16
   -d TMPDIR, --tmpdir TMPDIR
                         Where to store job files - you must delete them
                         manually, Default: /oasis/scratch/peanut/temp_project/
