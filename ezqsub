@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 07:35
+ Last modified: 2014-01-21 07:38
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -202,7 +202,10 @@ def _get_args():
     parser.add_argument('-n', '--name', default='job',
             help="Job Name, will be prefix in qstat. Default: job")
     parser.add_argument('-t', '--threads', default=default_threads,
-            help=''.join(["Over-ride number of threads per node, should be unnecessary, ",
+            help=''.join(["Over-ride number of threads per node, you should use this ",
+                          "if you want less than ", str(default_threads), " to run at ",
+                          "once on a single node. Note that you will still be billed for ",
+                          "all ", str(default_threads), " cores. ",
                           "Default: ", str(default_threads)]) )
     parser.add_argument('--commands', default=default_threads,
             help=''.join(["Over-ride number of commands per file, if this number ",
