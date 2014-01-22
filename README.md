@@ -20,9 +20,10 @@ clears them.  I think this isn't a major issue as these files are so small, but 
 still not ideal.
 
 ```
-usage: ezqsub [-h] [-i [INFILE]] [-n NAME] [-t THREADS] [--commands COMMANDS]
-              [-d TMPDIR] [-q QUEUE] [-m MODULES [MODULES ...]] [-w WALLTIME]
-              [-p PARAMS] [-a BILLING] [--cleanup]
+usage: ezqsub [-h] [-i [INFILE]] [-w WALLTIME] [-n NAME] [-t THREADS]
+              [--commands COMMANDS] [-d TMPDIR] [-q QUEUE]
+              [-m MODULES [MODULES ...]] [--mail MAIL] [-p PARAMS]
+              [-a BILLING] [--cleanup]
 
 ====================================================================================
 
@@ -32,7 +33,7 @@ usage: ezqsub [-h] [-i [INFILE]] [-n NAME] [-t THREADS] [--commands COMMANDS]
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 07:55
+ Last modified: 2014-01-22 08:06
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -47,6 +48,8 @@ optional arguments:
   -h, --help            show this help message and exit
   -i [INFILE], --infile [INFILE]
                         Input file, Default STDIN
+  -w WALLTIME, --walltime WALLTIME
+                        Set walltime, use least possible, max=336:00:00
   -n NAME, --name NAME  Job Name, will be prefix in qstat. Default: job
   -t THREADS, --threads THREADS
                         Over-ride number of threads per node, you should use
@@ -66,9 +69,11 @@ optional arguments:
                         Queue Choice, Default: normal
   -m MODULES [MODULES ...], --modules MODULES [MODULES ...]
                         Choose modules to load, Default: python
-  -w WALLTIME, --walltime WALLTIME
-                        Set walltime, use least possible, max=336:00:00,
-                        Default: python
+  --mail MAIL           qsub mail option, choose one of 'a', 'b', 'e', or 'n'
+                        a: mail is sent when the job is aborted by the batch
+                        system. b: mail is sent when the job begins execution.
+                        e: mail is sent when the job terminates. n: no mail
+                        sent. Default: 'n' (no mail)
   -p PARAMS, --params PARAMS
                         qsub parameters. These are any additional qsub flags
                         you wish to pass. Note that they should be enclosed in

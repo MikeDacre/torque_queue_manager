@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 17:25
+ Last modified: 2014-01-22 08:06
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -117,7 +117,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 
     return(files)
 
-def submit_files(file_list, walltime, modules=default_modules, name='job', queue=default_queue, params=default_params, address=default_address, threads=default_threads):
+def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads):
     """ Take a list of files, and submit each file to qsub
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
@@ -140,7 +140,7 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', queue
         template = "#!/bin/bash\n#PBS -S /bin/bash\n"
         template = ''.join([template, "#PBS -q ", queue, '\n#PBS -N ', job_name,
                             '\n#PBS -A ', address, '\n#PBS -l ', node_string,
-                            '\n#PBS -l walltime=', walltime])
+                            '\n#PBS -l walltime=', walltime, "\n#PBS -m ", mail])
         if params:
             template = ''.join([template,'\n#PBS ', params])
 
@@ -224,6 +224,13 @@ def _get_args():
             help=''.join(["Queue Choice, Default: ", default_queue]) )
     parser.add_argument('-m', '--modules', default=default_modules, nargs='+',
             help=''.join(["Choose modules to load, Default: ", default_modules]) )
+    parser.add_argument('--mail', default='n',
+            help=''.join(["qsub mail option, choose one of 'a', 'b', 'e', or 'n' \n",
+                          "a: mail is sent when the job is aborted by the batch system. \n",
+                          "b: mail is sent when the job begins execution. \n",
+                          "e: mail is sent when the job terminates. \n",
+                          "n: no mail sent. \n",
+                          "Default: 'n' (no mail)"]) )
     parser.add_argument('-p', '--params', default=default_params,
             help=''.join([ "qsub parameters. These are any additional qsub flags you ",
                            "wish to pass. Note that they should be enclosed in parentheses ",
@@ -309,7 +316,7 @@ def main():
         tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=commands, tmpdir=args.tmpdir)
 
     # Loop through input files and submit via qsub
-    results = submit_files(file_list=tmpfiles, modules=modules, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads)
+    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads)
 
     # Success
     print("PBS Jobs:")
