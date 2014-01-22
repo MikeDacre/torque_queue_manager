@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-01-21 07:55
+ Last modified: 2014-01-21 15:51
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -127,7 +127,7 @@ def submit_files(file_list, modules=default_modules, name='job', queue=default_q
 
     my_loc = path.realpath(__file__)
 
-    node_string = ''.join(['nodes=1:ppn=', threads, ':native'])
+    node_string = ''.join(['nodes=1:ppn=', str(threads), ':native'])
 
     pbs_job_nos = []
 
@@ -258,6 +258,16 @@ def main():
     else:
         debug = 0
 
+    # If '-f' is set, we are running on the nodes, so let's just do that
+    if args.tmpfile:
+        results = run_parallel(infile=args.tmpfile, threads=args.threads)
+
+        # Loop through outputs and print
+        for name, output in results:
+            print(name, ':\n', 'Result code: ', output[0], '\nOutput:\n\n',
+                    output[1], '\n\n\n', sep='')
+        sys.exit(0)
+
     # If cleanup is chosen, do that first
     if args.cleanup:
         cleanup_temp(tmpdir=args.tmpdir, prefix=args.name)
@@ -283,16 +293,6 @@ def main():
 
     if 'python' not in modules:
         modules.insert(0, 'python')
-
-    # If '-f' is set, we are running on the nodes, so let's just do that
-    if args.tmpfile:
-        results = run_parallel(infile=args.tmpfile, threads=args.threads)
-
-        # Loop through outputs and print
-        for name, output in results:
-            print(name, ':\n', 'Result code: ', output[0], '\nOutput:\n\n',
-                    output[1], '\n\n\n', sep='')
-        sys.exit(0)
 
     # Set number of commands per file
     if args.commands:
