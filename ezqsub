@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-05-20 12:42
+ Last modified: 2014-05-20 15:01
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -109,16 +109,17 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
     fd              = ''
 
     for line in infile:
-        if not filtered_lines:
-            filtered_lines = int(commands)
-            fd, outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)
-            os.close(fd)
-            files.append(os.path.realpath(outfile_name))
+        if not line.startswith('#'):
+            if not filtered_lines:
+                filtered_lines = int(commands)
+                fd, outfile_name = mkstemp(dir=tmpdir, text=True, prefix=prefix)
+                os.close(fd)
+                files.append(os.path.realpath(outfile_name))
 
-        with open(outfile_name, 'a') as outfile:
-            print(line.rstrip(), file=outfile)
+            with open(outfile_name, 'a') as outfile:
+                print(line.rstrip(), file=outfile)
 
-        filtered_lines = filtered_lines - 1
+            filtered_lines = filtered_lines - 1
 
     return(files)
 
