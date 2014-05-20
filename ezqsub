@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.5
        CREATED: 2013-12-26 17:37
- Last modified: 2014-05-20 15:50
+ Last modified: 2014-05-20 16:03
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -44,7 +44,7 @@ default_modules  = 'python'
 default_tmpdir   = ''.join(['/oasis/scratch/', user, '/temp_project/ezqsub/'])
 
 # How many jobs should be submitted at any one time
-max_running_default = 480
+max_running_default = 2
 
 def run_parallel(infile, threads=default_threads):
     """Take a file path to a file of commands and execute them in parallel.
@@ -108,6 +108,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
     filtered_lines  = 0
     files           = []
     fd              = ''
+    total_jobs      = 0
 
     for line in infile:
         if not line.startswith('#'):
@@ -121,7 +122,9 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
                 print(line.rstrip(), file=outfile)
 
             filtered_lines = filtered_lines - 1
+            total_jobs     = total_jobs + 1
 
+    print("There are", str(total_jobs), "jobs split between", str(len(files)), "node files")
     return(files)
 
 def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=480):
@@ -142,13 +145,22 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', mail=
     job_length = check_qstat(user)
 
     job_number = 1
+    m = False
+
+    print("\nSubmitting jobs now")
+
     while 1:
         if job_length > max_running:
-            print("Job length is", job_length, "which is greater than the max of",
-                  max_running, "waiting for other jobs to run...", file=sys.stderr)
+            if not m:
+                print("There are", job_length, "job queued or running in the queue",
+                      "which is greater than the max of", max_running,
+                      "\nWaiting for other jobs to run...", file=sys.stderr)
+                m = True
             sleep(2)
             job_length = check_qstat(user)
             continue
+
+        m = False
 
         file = file_list.pop(0)
 
@@ -185,7 +197,8 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', mail=
 
         # Get job number
         job_no = (pbs_submit.stdout.read().decode().rstrip())
-        print(job_no)
+        print('\t'.join([job_no, job_name]))
+
         pbs_job_nos.append(job_no)
         pbs_submit.stdout.close()
 
@@ -347,8 +360,9 @@ def main():
     results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads, max_running=max_running_default)
 
     # Success
-    print("Done")
+    print('\n')
     print(str(len(results)), "jobs submitted")
+    print("Done")
 
 
 # The end
