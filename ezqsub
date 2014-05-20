@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.5
        CREATED: 2013-12-26 17:37
- Last modified: 2014-05-20 15:48
+ Last modified: 2014-05-20 15:49
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -123,7 +123,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 
     return(files)
 
-def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=2):
+def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=480):
     """ Take a list of files, and submit each file to qsub
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
@@ -343,7 +343,7 @@ def main():
         tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=commands, tmpdir=args.tmpdir)
 
     # Loop through input files and submit via qsub
-    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads, max_running=2)
+    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads, max_running=480)
 
     # Success
     print("Done")
