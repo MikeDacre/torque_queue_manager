@@ -12,9 +12,9 @@
         AUTHOR: Michael D Dacre, mike.dacre@gmail.com
   ORGANIZATION: Stanford University
        LICENSE: MIT License
-       VERSION: 0.1
+       VERSION: 0.5
        CREATED: 2013-12-26 17:37
- Last modified: 2014-05-20 15:01
+ Last modified: 2014-05-20 15:48
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -123,12 +123,13 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 
     return(files)
 
-def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads):
+def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=2):
     """ Take a list of files, and submit each file to qsub
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
     import subprocess
     from os import path
+    from time import sleep
 
     my_loc = path.realpath(__file__)
 
@@ -136,8 +137,20 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', mail=
 
     pbs_job_nos = []
 
+    # Find out how many jobs are already running
+    job_length = check_qstat(user)
+
     job_number = 1
-    for file in file_list:
+    while 1:
+        if job_length > max_running:
+            print("Job length is", job_length, "which is greater than the max of",
+                  max_running, "waiting for other jobs to run...", file=sys.stderr)
+            sleep(2)
+            job_length = check_qstat(user)
+            continue
+
+        file = file_list.pop(0)
+
         # Create the unique job name
         job_name = '_'.join([name, str(job_number)])
         job_number = job_number + 1
@@ -170,10 +183,35 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', mail=
         pbs_submit.stdin.close()
 
         # Get job number
-        pbs_job_nos.append(pbs_submit.stdout.read().decode().rstrip())
+        job_no = (pbs_submit.stdout.read().decode().rstrip())
+        print(job_no)
+        pbs_job_nos.append(job_no)
         pbs_submit.stdout.close()
 
+        job_length = job_length + 1
+
+        # End loop if array empty
+        if not len(file_list):
+            break
+
     return(pbs_job_nos)
+
+def check_qstat(user):
+    """Don't allow more than 500 jobs at a time"""
+    from subprocess import check_output
+    import re
+
+    q = check_output(['qstat', '-u', user]).decode('utf8').rstrip().split('\n')
+
+    running = 0
+
+    # Get only running jobs from queue
+    for i in q:
+        if re.match(r'[0-9]', i):
+            if re.split(r' +', i)[9] == 'R' or re.split(r' +', i)[9] == 'Q':
+                running = running + 1
+
+    return(running)
 
 def _get_args():
     """Command Line Argument Parsing"""
@@ -305,12 +343,11 @@ def main():
         tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=commands, tmpdir=args.tmpdir)
 
     # Loop through input files and submit via qsub
-    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads)
+    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads, max_running=2)
 
     # Success
-    print("PBS Jobs:")
-    for result in results:
-        print(result, file=sys.stderr)
+    print("Done")
+    print(str(len(results)), "jobs submitted")
 
 
 # The end
