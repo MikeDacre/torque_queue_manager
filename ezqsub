@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 0.5
        CREATED: 2013-12-26 17:37
- Last modified: 2014-05-20 16:03
+ Last modified: 2014-07-17 15:44
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -44,7 +44,7 @@ default_modules  = 'python'
 default_tmpdir   = ''.join(['/oasis/scratch/', user, '/temp_project/ezqsub/'])
 
 # How many jobs should be submitted at any one time
-max_running_default = 2
+max_running_default = 500
 
 def run_parallel(infile, threads=default_threads):
     """Take a file path to a file of commands and execute them in parallel.
