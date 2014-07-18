@@ -12,9 +12,9 @@
         AUTHOR: Michael D Dacre, mike.dacre@gmail.com
   ORGANIZATION: Stanford University
        LICENSE: MIT License
-       VERSION: 0.5
+       VERSION: 1.0
        CREATED: 2013-12-26 17:37
- Last modified: 2014-07-17 15:44
+ Last modified: 2014-07-17 17:23
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
