@@ -1,97 +1,24 @@
-Gordon Tools
-============
+Torque Queue Manager
+====================
 
-Simple scripts for interacting with the Gordon cluster.
+Simple scripts for interacting with the Torque Queue.
 
-Currently housed in /home/peanut/gordon_tools
-Active user-available scripts are installed in /oasis/projects/nsf/sua131/peanut/usr/bin/
+Designed for use primarily with SDSC's Gordon Compute Cluster, but it will work with
+any Torque based queue system.
 
 ezqsub
 ------
 
-Python3 script that splits a file full of commands and submits jobs in batches on 
-the Gordon cluster.
+Take a file with one job per line (lines can be arbitratily long and contain multiple
+commands separated by semi-colons), and split it into batches for running with qsub.
 
-It makes use of the multithreading module in python for script execution on the nodes.
+On Gordon the default batch size is 16.
 
-The main issue right now is that it leaves temp files in the /tmp directory, so the
-user must manually delete them, otherwise they will just live there until the system
-clears them.  I think this isn't a major issue as these files are so small, but it is
-still not ideal.
+Automatically submits each batch to qsub with a one second delay between batches. It 
+also monitors the queue to only allow queue submission if the queue is not too full.
+If the queue contains more jobs for the current user than allowed by the threshold 
+defined in the ezqsub file, ezqsub will pause submission, recheck every 2 seconds, 
+and only submit jobs to the queue when more space is available.
 
-```
-usage: ezqsub [-h] [-i [INFILE]] [-w WALLTIME] [-n NAME] [-t THREADS]
-              [--commands COMMANDS] [-d TMPDIR] [-q QUEUE]
-              [-m MODULES [MODULES ...]] [--mail MAIL] [-p PARAMS]
-              [-a BILLING] [--cleanup]
-
-====================================================================================
-
-          FILE: ezqsub (python 3)
-        AUTHOR: Michael D Dacre, mike.dacre@gmail.com
-  ORGANIZATION: Stanford University
-       LICENSE: MIT License
-       VERSION: 0.1
-       CREATED: 2013-12-26 17:37
- Last modified: 2014-01-22 08:06
-
-   DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
-                The file should be one line per job, the lines can be arbitrarily
-                long and complex bash scripts, just use semi-colons instead of new-
-                lines.
-
-         USAGE: ezqsub script_file.txt or ezqsub < script_file.txt
-
-====================================================================================
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -i [INFILE], --infile [INFILE]
-                        Input file, Default STDIN
-  -w WALLTIME, --walltime WALLTIME
-                        Set walltime, use least possible, max=336:00:00
-  -n NAME, --name NAME  Job Name, will be prefix in qstat. Default: job
-  -t THREADS, --threads THREADS
-                        Over-ride number of threads per node, you should use
-                        this if you want less than 16 to run at once on a
-                        single node. Note that you will still be billed for
-                        all 16 cores. Default: 16
-  --commands COMMANDS   Over-ride number of commands sent to each node. This
-                        defaults to the same as '-t'. If you want less than
-                        16commands to run on a node, you can just set '-t'. If
-                        however, you want jobs to run in serial on a node,
-                        this can be a good option. This option should be
-                        completely unnecessary most of the time Default: 16
-  -d TMPDIR, --tmpdir TMPDIR
-                        Where to store job files - you must delete them
-                        manually, Default: /oasis/scratch/peanut/temp_project/
-  -q QUEUE, --queue QUEUE
-                        Queue Choice, Default: normal
-  -m MODULES [MODULES ...], --modules MODULES [MODULES ...]
-                        Choose modules to load, Default: python
-  --mail MAIL           qsub mail option, choose one of 'a', 'b', 'e', or 'n'
-                        a: mail is sent when the job is aborted by the batch
-                        system. b: mail is sent when the job begins execution.
-                        e: mail is sent when the job terminates. n: no mail
-                        sent. Default: 'n' (no mail)
-  -p PARAMS, --params PARAMS
-                        qsub parameters. These are any additional qsub flags
-                        you wish to pass. Note that they should be enclosed in
-                        parentheses e.g. "-l mem=32GB", not just plain
-                        'mem=32GB', If you don't include the flags, it won't
-                        work. Default:
-  -a BILLING, --billing BILLING
-                        Choose the address to bill to, find this with
-                        show_account or on portal.xsedeq.org, Default: sua135
-  --cleanup             Cleanup your temporary directory. Please run this
-                        every now and then. IMPORTANT: DO NOT RUN IF YOU HAVE
-                        JOBS IN THE QUEUE!!!.Default temp directory:
-                        /oasis/scratch/peanut/temp_project/Default prefix:
-                        'job'. If you use the -n flag in any of your runs, use
-                        that same flag. e.g. if you ran with 'ezqsub -n my_job
-                        -i my_job_script.txt', cleanup with 'ezqsub -n my_job
-                        --cleanup'
-```
-
-Signature file is updated on every github upload
-
+When jobs execute on the compute nodes, they are managed by this script also, and run
+in parallel using python's built-in multi-threading function.
