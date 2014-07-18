@@ -1,7 +1,9 @@
 Torque Queue Manager
 ====================
 
-Simple scripts for interacting with the Torque Queue.
+Python wrapper for interacting with the Torque PBS Queue.
+
+Includes a script for easy job batch submission (ezqsub)
 
 Designed for use primarily with SDSC's Gordon Compute Cluster, but it will work with
 any Torque based queue system.
