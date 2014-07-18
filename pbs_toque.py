@@ -14,7 +14,7 @@
 #       LICENSE: MIT License, Property of Stanford, Use as you wish
 #       VERSION: 0.1
 #       CREATED: 2014-07-18 10:11
-# Last modified: 2014-07-18 12:02
+# Last modified: 2014-07-18 15:32
 #
 #   DESCRIPTION:
 #
@@ -22,24 +22,17 @@
 #
 #====================================================================================
 """
+from subprocess import check_output as rn
 from . import defaults
 
-class Queue:
+class queue:
     """ A Torque queue handling object.
 
         Allows queue monitoring, automatic resubmission, and
         improved job information. """
 
+    nodes = ''
 
-    class Job:
-        """ A single Torque job object for managing and interacting
-            with queue jobs.
+    def __init__(self):
+        self.nodes = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
 
-            Allows intelligent resubmission. """
-
-        def __init__(self, template):
-            pass
-
-        def submit(self):
-            """ Submit a job using qsub and return job number """
-            pass
