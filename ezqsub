@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 1.1
        CREATED: 2013-12-26 17:37
- Last modified: 2014-07-17 18:17
+ Last modified: 2014-07-17 18:20
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -55,12 +55,19 @@ max_running_default = 500
 ###########################################################
 
 
-class Job:
-    """ A single PBS job object for managing and interacting
-        with Torque.
+class Queue:
+    """ A Torque queue handling object.
 
         Allows queue monitoring, automatic resubmission, and
         improved job information. """
+
+
+    class Job:
+        """ A single Torque job object for managing and interacting
+            with queue jobs.
+
+            Allows intelligent resubmission. """
+
 
 def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=480):
     """ Take a list of files, and submit each file to qsub
