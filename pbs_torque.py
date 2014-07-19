@@ -14,7 +14,7 @@
 #       LICENSE: MIT License, Property of Stanford, Use as you wish
 #       VERSION: 0.1
 #       CREATED: 2014-07-18 10:11
-# Last modified: 2014-07-18 21:44
+# Last modified: 2014-07-18 22:44
 #
 #   DESCRIPTION:
 #
@@ -28,6 +28,9 @@ from datetime import timedelta as delta
 from sys import stderr
 from re import split as s
 from re import findall as find
+# Import logging functions from
+# https://github.com/MikeDacre/fraser-tools/blob/master/mike.py
+from mike import logme
 
 class queue:
     """ A Torque queue handling object.
@@ -37,7 +40,20 @@ class queue:
 
     def __init__(self):
         self.queues = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
-        self.nodes  =
+        j = rn('pbsnodes').decode('utf8').split('\n')
+        count = 0
+        k = {}
+        for i in j:
+            if i:
+                if len(k) <= count:
+                    name = i
+                    k[name] = {}
+                else:
+                    m = re.split(r' = ', i)
+                    k[name][re.sub(r'^ +', '', m[0])] = m[1]
+            else:
+                count = count + 1
+        self.nodes = k
 
     def get_job_list(self):
         """ Run qstat -n -1 and return a dictionary of job information """
@@ -75,6 +91,19 @@ class queue:
             return(job_list[job_no])
         else:
             return(0)
+
+    def check_user(self, user_name):
+        """ Return job information for a single user """
+
+        job_list = queue.get_job_list()
+
+        user_list = {}
+
+        for k, v in job_list:
+            if v[user] == user_name:
+                user_list[k] = v
+
+        return(user_list)
 
 class job:
     """ A job before it is a job
@@ -130,6 +159,7 @@ class job:
     # Internal control variables
     _prepared  = False
     _submitted = False
+    _resubmits = 0
 
     def prepare(self):
         """ Create a template file and qsub command for submission """
@@ -233,12 +263,32 @@ class job:
         return(status)
 
     def did_i_fail(self):
-        """ Check if job failed """
+        """ Check if job failed
+            Returns true if failed """
         status = check_status()
-        submit_to_now = int(self.submitted) - int(time.time())
-        elapsed_to_now = int(
+        if status[0] == -1:
+            return(True)
+        else:
+            return(False)
 
-        if status == "Completed"
+    def resubmit_on_fail(self):
+        """ Check if failed, and automatically resubmit if failed and max resubmissions
+            (defined in defaults in this script's source code) has not been exceeded """
+
+        if did_i_fail():
+            logme("Job number " + str(self.job_no) + " aka. " + self.name + " failed", stderr, 2)
+            if self._resubmits <= defaults.resubmit_cutoff:
+                self.submit()
+                self._resubmits = self._resubmits + 1
+                logme("Rebusmission attempt " + str(self._resubmits), stderr, 2)
+            else:
+                template_file_name = str(self.job_no) + ".failed_attempt.pbs"
+                info = '\n'.join(["Max resubmission attempts (" + str(defaults.resubmit_cutoff) + ") exceeded",
+                                  "Dumping template file to " + template_file_name,
+                                  "Failed qsub command: ",
+                                  self.qsub_command])
+                with open(template_file_name, 'w') as dumpfile:
+                    dumpfile.write(self.template)
 
 def submit_multiple(jobs, delay=1, max_running=500):
     """ Submit an array of jobs, at one second intervals.
