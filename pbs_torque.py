@@ -14,7 +14,7 @@
 #       LICENSE: MIT License, Property of Stanford, Use as you wish
 #       VERSION: 0.1
 #       CREATED: 2014-07-18 10:11
-# Last modified: 2014-07-18 22:44
+# Last modified: 2014-08-20 17:23
 #
 #   DESCRIPTION:
 #
@@ -26,8 +26,10 @@ from subprocess import check_output as rn
 from subprocess import Popen, PIPE
 from datetime import timedelta as delta
 from sys import stderr
+from re import sub
 from re import split as s
 from re import findall as find
+from time import time
 # Import logging functions from
 # https://github.com/MikeDacre/fraser-tools/blob/master/mike.py
 from mike import logme
@@ -41,6 +43,12 @@ class queue:
     def __init__(self):
         self.queues = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
         j = rn('pbsnodes').decode('utf8').split('\n')
+
+        # Setup the initial queue and job information
+        self._jobchecktime = 5
+        self.get_job_list()
+
+        # Setup node list, this only needs to be done once
         count = 0
         k = {}
         for i in j:
@@ -49,59 +57,67 @@ class queue:
                     name = i
                     k[name] = {}
                 else:
-                    m = re.split(r' = ', i)
-                    k[name][re.sub(r'^ +', '', m[0])] = m[1]
+                    m = s(r' = ', i)
+                    k[name][sub(r'^ +', '', m[0])] = m[1]
             else:
                 count = count + 1
         self.nodes = k
 
     def get_job_list(self):
         """ Run qstat -n -1 and return a dictionary of job information """
-        qstat = rn(['qstat', '-n', '-1']).decode('utf8').split('\n')
+        # Only run if I haven't been run in the last 2 seconds
+        if (int(time()) - self._jobchecktime) < 3:
+            return
+
+        qstat = rn(['qstat', '-n', '-1']).decode('utf8').split('\n')[5:-1]
 
         self.jobs = {}
         for i in qstat:
-            f = s(r' +', i)
+            f = s(r' +', i.rstrip())
             # Get elapsed seconds
             e = f[10].split(':')
             e2 = (int(e[0]) * pow(60, 2)) + (int(e[1]) * 60) + int(e[2])
-            self.jobs[find(r'[0-9]+', f[0])] = {'user'     : f[1],
-                                                'queue'    : f[2],
-                                                'job_name' : f[3],
-                                                'sess_id'  : '' if f[4] == '--' else f[4],
-                                                'nodes'    : f[5],
-                                                'tasks'    : f[6],
-                                                'memory'   : f[7],
-                                                'walltime' : '' if f[8] == '--' else f[8],
-                                                'state'    : f[9],
-                                                'elapsed'  : '' if f[10] == '--' else f[10],
-                                                'elapseds' : int(e2),
-                                                'nodes'    : [] if f[11] == '--' else f[11].split('/')
-                                                }
+            self.jobs[find(r'[0-9]+', f[0])[0]] =  {'user'     : f[1],
+                                                    'queue'    : f[2],
+                                                    'job_name' : f[3],
+                                                    'sess_id'  : '' if f[4] == '--' else f[4],
+                                                    'nodes'    : f[5],
+                                                    'tasks'    : f[6],
+                                                    'memory'   : f[7],
+                                                    'walltime' : '' if f[8] == '--' else f[8],
+                                                    'state'    : f[9],
+                                                    'elapsed'  : '' if f[10] == '--' else f[10],
+                                                    'elapseds' : int(e2),
+                                                    'nodes'    : [] if f[11] == '--' else f[11].split('+')
+                                                    }
 
+        # Set a time variable that can be checked in the future
+        self._jobchecktime = int(time())
 
     def check_job(self, job_no):
         """ Execute qstat and return:
-            (state, elapsed_time, [node_list] if job in list,
-            if not, return 0 """
+            (state, elapsed time, [node_list]) if job in list,
+            if not, return None """
 
-        job_list = queue.get_job_list()
+        self.get_job_list()
 
-        if job_no in job_list:
-            return(job_list[job_no])
+        if job_no in self.jobs:
+            return(self.jobs[job_no]['state'],
+                   self.jobs[job_no]['elapsed'],
+                   self.jobs[job_no]['nodes'])
         else:
-            return(0)
+            return(None)
 
     def check_user(self, user_name):
-        """ Return job information for a single user """
+        """ Return jobs for a single user """
 
-        job_list = queue.get_job_list()
+        self.get_job_list()
 
-        user_list = {}
+        user_list = []
 
-        for k, v in job_list:
-            if v[user] == user_name:
-                user_list[k] = v
+        for k, v in self.jobs.items():
+            if v['user'] == user_name:
+                user_list.append(k)
 
         return(user_list)
 
@@ -245,7 +261,7 @@ class job:
                     if j2 == 'R':
                         status = (2, "Running, elapsed time = " + j['elapsed'])
                     elif j2 == 'C':
-                        if j['elapseds']= < 2:
+                        if j['elapseds'] < 2:
                              status == (-1, "Failed: Completed in less than 2 seconds")
                         else:
                             status = (3, "Completed, elapsed time = " + j['elapsed'])
