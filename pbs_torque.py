@@ -14,12 +14,12 @@
 #       LICENSE: MIT License, Property of Stanford, Use as you wish
 #       VERSION: 0.1
 #       CREATED: 2014-07-18 10:11
-# Last modified: 2015-03-02 12:43
+# Last modified: 2015-05-01 13:20
 #
 #====================================================================================
 """
 from subprocess import check_output as rn
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, CalledProcessError
 from datetime import timedelta as delta
 from sys import stderr
 from re import split as s
@@ -29,6 +29,7 @@ import re
 # https://github.com/MikeDacre/fraser-tools/blob/master/mike.py
 from mike import logme
 
+
 class queue:
     """ A Torque queue handling object.
 
@@ -36,7 +37,10 @@ class queue:
         improved job information. """
 
     def __init__(self):
-        self.queues = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
+        try:
+            self.queues = [i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3]]
+        except CalledProcessError:
+            pass
         self.get_job_list()
         j = rn('pbsnodes').decode('utf8').split('\n')
         count = 0
@@ -82,20 +86,19 @@ class queue:
             else:
                 e = f[10].split(':')
                 e2 = (int(e[0]) * pow(60, 2)) + (int(e[1]) * 60) + int(e[2])
-            self.jobs[find(r'[0-9]+', f[0])[0]] = { 'user'     : f[1],
-                                                    'queue'    : f[2],
-                                                    'job_name' : f[3],
-                                                    'sess_id'  : '' if f[4] == '--' else f[4],
-                                                    'nodes'    : f[5],
-                                                    'tasks'    : f[6],
-                                                    'memory'   : f[7],
-                                                    'walltime' : '' if f[8] == '--' else f[8],
-                                                    'state'    : f[9],
-                                                    'elapsed'  : '' if f[10] == '--' else f[10],
-                                                    'elapseds' : int(e2),
-                                                    'nodes'    : [] if f[11] == '--' else f[11].split('/')
-                                                    }
-
+            self.jobs[find(r'[0-9]+', f[0])[0]] = {'user':      f[1],
+                                                   'queue':     f[2],
+                                                   'job_name':  f[3],
+                                                   'sess_id':   '' if f[4] == '--' else f[4],
+                                                   'nodes':     f[5],
+                                                   'tasks':     f[6],
+                                                   'memory':    f[7],
+                                                   'walltime':  '' if f[8] == '--' else f[8],
+                                                   'state':     f[9],
+                                                   'elapsed':   '' if f[10] == '--' else f[10],
+                                                   'elapseds':  int(e2),
+                                                   'nodes':     [] if f[11] == '--' else f[11].split('/')
+                                                   }
 
     def check_job(self, job_no):
         """ Execute qstat and return:
