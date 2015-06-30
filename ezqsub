@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/oasis/projects/nsf/sua137/peanut/usr/bin/python3
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8 tabstop=4 expandtab shiftwidth=4 softtabstop=4
 #
@@ -27,6 +27,7 @@
 """
 
 import sys, os
+from __future__ import absolute_import
 
 debug = 0
 
@@ -43,8 +44,12 @@ default_params   = ''
 default_modules  = 'python'
 default_tmpdir   = ''.join(['/oasis/scratch/', user, '/temp_project/ezqsub/'])
 
+# This is required on systems with an incompatible PYTHONPATH
+pypath           = 'PYTHONPATH=' + '/oasis/projects/nsf/sua137/peanut/usr/lib/python3.4' + '; '
+
 # How many jobs should be submitted at any one time
 max_running_default = 500
+
 
 def run_parallel(infile, threads=default_threads):
     """Take a file path to a file of commands and execute them in parallel.
@@ -73,7 +78,7 @@ def run_parallel(infile, threads=default_threads):
         for line in file:
             if not line.startswith('#'):
                 command = [line.rstrip()]
-                threads.append( (line.rstrip(), pool.apply_async(call, command)) )
+                threads.append((line.rstrip(), pool.apply_async(call, command)))
 
     # Delete infile
     os.remove(infile)
@@ -81,7 +86,7 @@ def run_parallel(infile, threads=default_threads):
     # Run the threads
     results = []
     for name, thread in threads:
-        results.append( (name, thread.get()) )
+        results.append((name, thread.get()))
 
     # Return results
     return results
@@ -126,6 +131,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 
     print("There are", str(total_jobs), "jobs split between", str(len(files)), "node files")
     return(files)
+
 
 def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=480):
     """ Take a list of files, and submit each file to qsub
@@ -174,12 +180,12 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', mail=
                             '\n#PBS -A ', address, '\n#PBS -l ', node_string,
                             '\n#PBS -l walltime=', walltime, "\n#PBS -m ", mail])
         if params:
-            template = ''.join([template,'\n#PBS ', params])
+            template = ''.join([template, '\n#PBS ', params])
 
         template = ''.join([template, '\n\ncd $PBS_O_WORKDIR\n\n'])
         for module in modules:
             template = ''.join([template, 'module load ', module, '\n'])
-        template = ''.join([template, '\n', my_loc, ' -f ', file, ' -t ', str(threads), '\n'])
+        template = ''.join([template, '\n', pypath, my_loc, ' -f ', file, ' -t ', str(threads), '\n'])
 
         if debug:
             print(template)
@@ -210,6 +216,7 @@ def submit_files(file_list, walltime, modules=default_modules, name='job', mail=
 
     return(pbs_job_nos)
 
+
 def check_qstat(user):
     """Don't allow more than 500 jobs at a time"""
     from subprocess import check_output
@@ -227,13 +234,14 @@ def check_qstat(user):
 
     return(running)
 
+
 def _get_args():
     """Command Line Argument Parsing"""
     import argparse
 
     parser = argparse.ArgumentParser(
-                 description=__doc__,
-                 formatter_class=argparse.RawDescriptionHelpFormatter)
+             description=__doc__,
+             formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Optional Files
     parser.add_argument('-i', '--infile', nargs='?', default='',
@@ -318,7 +326,7 @@ def main():
         sys.exit(0)
 
     # Require walltime for command line run
-    if not args.walltime:
+    if not args.tmpfile and not args.walltime:
         print(parser.print_help(), file=sys.stderr)
         print("Walltime required\nPlease prived a walltime. e.g.:\n",
               __file__, "-w 1:00:00 -i <script_file>", file=sys.stderr)
