@@ -14,7 +14,21 @@
 #       LICENSE: MIT License, Property of Stanford, Use as you wish
 #       VERSION: 0.1
 #       CREATED: 2014-07-18 10:11
-# Last modified: 2015-08-07 15:26
+<<<<<<< HEAD
+# Last modified: 2014-08-25 16:10
+#
+#   DESCRIPTION:
+#
+#         USAGE:
+||||||| merged common ancestors
+# Last modified: 2014-08-20 17:23
+#
+#   DESCRIPTION:
+#
+#         USAGE:
+=======
+# Last modified: 2015-05-01 13:20
+>>>>>>> b1b84448667137dda2d137e919acc8e2933a2a37
 #
 #====================================================================================
 """
@@ -26,8 +40,8 @@ from re import sub
 from re import split as s
 from re import findall as find
 from time import time
-# Import logging functions from
-# https://github.com/MikeDacre/fraser-tools/blob/master/mike.py
+
+# Import logging functions from http://j.mp/python_logme
 import logme
 
 # Default variables
@@ -41,7 +55,18 @@ class queue:
         improved job information. """
 
     def __init__(self):
+<<<<<<< HEAD
+        from re import search
         self.queues = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
+||||||| merged common ancestors
+        self.queues = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
+=======
+        try:
+            self.queues = [i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3]]
+        except CalledProcessError:
+            pass
+        self.get_job_list()
+>>>>>>> b1b84448667137dda2d137e919acc8e2933a2a37
         j = rn('pbsnodes').decode('utf8').split('\n')
 
         # Setup the initial queue and job information
@@ -63,6 +88,19 @@ class queue:
                 count = count + 1
         self.nodes = k
 
+<<<<<<< HEAD
+        # Create dictionary of available cores
+        cores = {}
+        for k, v in self.nodes.items():
+            if search(r'down', v['state']) or search(r'offline', v['state']):
+                continue
+            if v['np'] in core_options:
+                cores[v['np']].append(k)
+            else:
+                cores[v['np']] = [k]
+
+||||||| merged common ancestors
+=======
     def get_job_count(self, user_name='', state=''):
         """ Return a count of all jobs in the queue in a given state for
             fiven user_name """
@@ -79,6 +117,7 @@ class queue:
                 count = count + 1
         return(count)
 
+>>>>>>> b1b84448667137dda2d137e919acc8e2933a2a37
     def get_job_list(self):
         """ Run qstat -n -1 and return a dictionary of job information """
         # Only run if I haven't been run in the last 2 seconds
@@ -139,6 +178,7 @@ class queue:
 
 class job:
     """ A job before it is a job
+        ------------------------
 
         There is only one absolutely required parameter:
         command = The actual command to execute on the cluster, as a shell script (string)
