@@ -14,7 +14,7 @@
 #       LICENSE: MIT License, Property of Stanford, Use as you wish
 #       VERSION: 0.1
 #       CREATED: 2014-07-18 10:11
-# Last modified: 2014-08-20 17:23
+# Last modified: 2014-08-25 16:10
 #
 #   DESCRIPTION:
 #
@@ -30,9 +30,12 @@ from re import sub
 from re import split as s
 from re import findall as find
 from time import time
-# Import logging functions from
-# https://github.com/MikeDacre/fraser-tools/blob/master/mike.py
-from mike import logme
+
+# Import logging functions from http://j.mp/python_logme
+import logme
+
+# Default variables
+max_running = 500
 
 class queue:
     """ A Torque queue handling object.
@@ -41,6 +44,7 @@ class queue:
         improved job information. """
 
     def __init__(self):
+        from re import search
         self.queues = [ i.split(' ')[0] for i in rn(['qstat', '-q']).decode('utf8').split('\n')[5:-3] ]
         j = rn('pbsnodes').decode('utf8').split('\n')
 
@@ -62,6 +66,16 @@ class queue:
             else:
                 count = count + 1
         self.nodes = k
+
+        # Create dictionary of available cores
+        cores = {}
+        for k, v in self.nodes.items():
+            if search(r'down', v['state']) or search(r'offline', v['state']):
+                continue
+            if v['np'] in core_options:
+                cores[v['np']].append(k)
+            else:
+                cores[v['np']] = [k]
 
     def get_job_list(self):
         """ Run qstat -n -1 and return a dictionary of job information """
@@ -123,6 +137,7 @@ class queue:
 
 class job:
     """ A job before it is a job
+        ------------------------
 
         There is only one absolutely required parameter:
         command = The actual command to execute on the cluster, as a shell script (string)
@@ -162,9 +177,15 @@ class job:
     # Specify details about the nodes you want
     node_string = ''
 
+    # Cores per job
+    cores = 1
+
     # Address refers to the PBS -A parameter, used by some clusters, such as
     # the SDSC clusters, to keep track of billing hours
     address = ''
+
+    # Rocks modules if necessary
+    modules = []
 
     # The actual execution command
     command = ''
@@ -306,7 +327,7 @@ class job:
                 with open(template_file_name, 'w') as dumpfile:
                     dumpfile.write(self.template)
 
-def submit_multiple(jobs, delay=1, max_running=500):
+def submit_multiple(jobs, delay=1, max_running=max_running):
     """ Submit an array of jobs, at one second intervals.
         These jobs must be job classes, not job numbers
 
