@@ -1,0 +1,30 @@
+# This is an example configuration file for the ezqsub tool
+# It should be placed in the /etc/ or user home directory
+
+# Threads is the number of cores on a node, commands is the
+# number of jobs to run in parallel on a node
+threads  = 16
+commands = 16
+
+# Use the rocks module system
+use_modules = True
+modules     = python
+
+# Use a billing system based on address
+use_address = True
+address     = sua137
+
+# Default torque queue
+queue    = normal
+
+# A comma seperated list of paramaters to pass to qsub every time
+params   =
+
+# A temporary directory for storing files
+# A list can be used, the word 'user' on its own will be replaced with the
+# current user's name
+# tmpdir   = /oasis/scratch/, user, /temp_project/ezqsub
+tmpdir = /tmp, user
+
+# How many jobs should be submitted at any one time
+max_running = 500

@@ -14,7 +14,7 @@
        LICENSE: MIT License
        VERSION: 1.1
        CREATED: 2013-12-26 17:37
- Last modified: 2015-04-23 12:00
+ Last modified: 2015-08-07 19:51
 
    DESCRIPTION: Take a file of scripts and submit it to the gordon cluster
                 The file should be one line per job, the lines can be arbitrarily
@@ -26,36 +26,121 @@
 ====================================================================================
 """
 
-import sys, os
+import sys
+import os
+import re
 
 debug = 1
-
-###########################################################
-################ User Modifiable Variables ################
-###########################################################
 
 # Get user name
 user = os.environ['USER']
 
-# Set the defaults
-default_threads  = 16
-default_commands = default_threads
+###########################################################
+############### Default Options and Config ################
+###########################################################
 
-default_address  = 'sua137'
-default_queue    = 'normal'
-default_params   = ''
-default_modules  = 'python'
-default_tmpdir   = ''.join(['/oasis/scratch/', user, '/temp_project/ezqsub/'])
 
-# How many jobs should be submitted at any one time
-max_running_default = 500
+# Get config file variables
+def get_config(file=None):
+    # Simple defaults, these can be overriden by the config file (see docs)
+    default_threads  = 1
+    default_commands = 1
+    default_queue    = 'default'
+
+    default_tmpdir      = os.path.join(os.path.sep, 'tmp', user)
+    default_max_running = 500
+
+    def read_config(file, config):
+        # Define allowed values
+        allowed_values = ['threads',
+                          'commands',
+                          'use_address',
+                          'use_modules',
+                          'address',
+                          'queue',
+                          'params',
+                          'modules',
+                          'tmpdir',
+                          'max_running']
+
+        if not os.path.isfile(file):
+            return(None)
+
+        with open(file) as conf_file:
+            for line in conf_file:
+                if line.startswith('#'):
+                    continue
+                items = re.split(r' *= *', line.strip())
+                if len(items) > 1:
+                    key = items[0].strip()
+                    val = items[1].strip()
+                    if key in allowed_values:
+                        val = re.split(r', *', val)
+                        val = val[0] if len(val) == 1 else val
+                        config[items[0]] = val
+                    else:
+                        print("Config variable", key, "in file", file, "is invalid", file=sys.stderr)
+                        sys.exit(1)
+
+        return(config)
+
+    # Define system and user config file locations
+    sys_config  = os.path.join(os.path.sep, 'etc', 'ezqsub')
+    user_config = os.path.join(os.path.expanduser("~"), '.ezqsub')
+
+    # Hold final config values
+    config = {}
+
+    # Load the system-wide default first, they can be overridden later.
+    if os.path.isfile(sys_config):
+        config = read_config(sys_config, config)
+
+    # Load the user_config file if no alternate config file is given
+    if file:
+        config = read_config(file, config)
+    else:
+        if os.path.isfile(user_config):
+            config = read_config(user_config, config)
+
+    # Fill missing values with defaults
+    config['threads'] = config['threads'] if 'threads' in config else default_threads
+    config['commands'] = config['commands'] if 'commands' in config else default_commands
+    config['queue'] = config['queue'] if 'queue' in config else default_queue
+    config['tmpdir'] = config['tmpdir'] if 'tmpdir' in config else default_tmpdir
+    config['max_running'] = config['max_running'] if 'max_running' in config else default_max_running
+    if not 'use_address' in config:
+        config['use_address'] = False
+    if not 'use_modules' in config:
+        config['use_modules'] = False
+
+    # Correct data types
+    for i in ['threads', 'commands', 'max_running']:
+        config[i] = int(config[i])
+    for i in ['use_address', 'use_modules']:
+        j = config[i]
+        if j == 'True' or j == '1' or j == 'yes' or j == 'on':
+            config[i] = True
+        else:
+            config[i] = False
+    if isinstance(config['tmpdir'], list):
+        tmpdir = []
+        for i in config['tmpdir']:
+            i = re.sub(r'^/', '', i)
+            print(i)
+            tmpdir.append(user if i == 'user' else i)
+        config['tmpdir'] = os.path.join(os.path.sep, *tmpdir)
+        print(tmpdir)
+    return(config)
+
+# Load config
+cfg = get_config()
 
 ###########################################################
 ##################### Queue Handling ######################
 ###########################################################
 
 
-def submit_files(file_list, walltime, modules=default_modules, name='job', mail='n', queue=default_queue, params=default_params, address=default_address, threads=default_threads, max_running=480):
+def submit_files(file_list, walltime, modules=None, name='job', mail='n', queue=cfg['queue'], params=None, address=None, threads=cfg['threads'], max_running=480):
     """ Take a list of files, and submit each file to qsub
         You can modify the queue with the queue variable or any other qsub
         parameters using the params variable """
@@ -162,7 +247,7 @@ def check_qstat(user):
 ############### Input File Handling #######################
 ###########################################################
 
-def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=default_tmpdir):
+def split_scripts(infile, prefix='job', commands=cfg['commands'], tmpdir=cfg['tmpdir']):
     """
     Take a file of scripts and split it into temp script files to be submitted
     to the cluster.
@@ -207,7 +292,7 @@ def split_scripts(infile, prefix='job', commands=default_commands, tmpdir=defaul
 ################# Direct Running on Node ##################
 ###########################################################
 
-def run_parallel(infile, threads=default_threads):
+def run_parallel(infile, threads=cfg['threads']):
     """Take a file path to a file of commands and execute them in parallel.
        threads variable takes the number of threads to run at once
 
@@ -274,29 +359,30 @@ def _get_args():
     # Optional Arguments
     parser.add_argument('-n', '--name', default='job',
             help="Job Name, will be prefix in qstat. Default: job")
-    parser.add_argument('-t', '--threads', default=default_threads,
+    parser.add_argument('-t', '--threads', default=cfg['threads'],
             help=''.join(["Over-ride number of threads per node, you should use this ",
-                          "if you want less than ", str(default_threads), " to run at ",
+                          "if you want less than ", str(cfg['threads']), " to run at ",
                           "once on a single node. Note that you will still be billed for ",
-                          "all ", str(default_threads), " cores. This is a good idea if ",
+                          "all ", str(cfg['threads']), " cores. This is a good idea if ",
                           "you want a few jobs only to run. e.g. for a job requiring 30G ",
                           "of memory, you will want one job per node, so you can set -t ",
                           "to 1.",
-                          "Default: ", str(default_threads)]) )
+                          "Default: ", str(cfg['threads'])]) )
     parser.add_argument('--commands',
             help=''.join(["Over-ride number of commands sent to each node. This defaults ",
-                          "to the same as '-t'. If you want less than ", str(default_threads),
+                          "to the same as '-t'. If you want less than ", str(cfg['commands']),
                           "commands to run on a node, you can just set '-t'. If however, ",
                           "you want jobs to run in serial on a node, this can be a good option. \n",
                           "This option should be completely unnecessary most of the time\n",
-                          "Default: ", str(default_commands)]) )
-    parser.add_argument('-d', '--tmpdir', default=default_tmpdir,
+                          "Default: ", str(cfg['commands'])]) )
+    parser.add_argument('-d', '--tmpdir', default=cfg['tmpdir'],
             help=''.join(["Where to store job files. These will be deleted when they run ",
-                          "Default: ", default_tmpdir]) )
-    parser.add_argument('-q', '--queue', default=default_queue,
-            help=''.join(["Queue Choice, Default: ", default_queue]) )
-    parser.add_argument('-m', '--modules', default=default_modules, nargs='+',
-            help=''.join(["Choose modules to load, Default: ", default_modules]) )
+                          "Default: ", cfg['tmpdir']]) )
+    parser.add_argument('-q', '--queue', default=cfg['queue'],
+            help=''.join(["Queue Choice, Default: ", cfg['queue']]) )
+    if cfg['use_modules']:
+        parser.add_argument('-m', '--modules', default=cfg['modules'], nargs='+',
+                help=''.join(["Choose modules to load, Default: ", cfg['modules']]) )
     parser.add_argument('--mail', default='n',
             help=''.join(["qsub mail option, choose one of 'a', 'b', 'e', or 'n' \n",
                           "a: mail is sent when the job is aborted by the batch system. \n",
@@ -304,18 +390,20 @@ def _get_args():
                           "e: mail is sent when the job terminates. \n",
                           "n: no mail sent. \n",
                           "Default: 'n' (no mail)"]) )
-    parser.add_argument('-p', '--params', default=default_params,
+    parser.add_argument('-p', '--params', default=cfg['params'],
             help=''.join([ "qsub parameters. These are any additional qsub flags you ",
                            "wish to pass. Note that they should be enclosed in parentheses ",
                            "e.g. \"-l mem=32GB\", not just plain 'mem=32GB', ",
                            "If you don't include the flags, it won't work. Default: ",
-                           default_params]) )
-    parser.add_argument('-a', '--billing', default=default_address,
-            help=''.join(["Choose the address to bill to, find this with ",
-                          "show_account or on portal.xsedeq.org",
-                          ", Default: ", default_address]) )
+                           cfg['params']]) )
+    if cfg['use_address']:
+        parser.add_argument('-a', '--billing', default=cfg['address'],
+                help=''.join(["Choose the address to bill to, find this with ",
+                            "show_account or on portal.xsedeq.org",
+                            ", Default: ", cfg['address']]) )
 
     return parser
+
 
 # Main function for direct running
 def main():
@@ -344,8 +432,8 @@ def main():
     # Require walltime for command line run
     if not args.walltime:
         print(parser.print_help(), file=sys.stderr)
-        print("Walltime required\nPlease prived a walltime. e.g.:\n",
-              __file__, "-w 1:00:00 -i <script_file>", file=sys.stderr)
+        print("Walltime required\nPlease prived a walltime. e.g.:",
+              '\n' + __file__, "-w 1:00:00 -i <script_file>", file=sys.stderr)
         sys.exit(1)
 
     # Turn modules into array - split on space or comma
@@ -381,7 +469,7 @@ def main():
         tmpfiles = split_scripts(infile=sys.stdin, prefix=args.name, commands=commands, tmpdir=args.tmpdir)
 
     # Loop through input files and submit via qsub
-    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads, max_running=max_running_default)
+    results = submit_files(file_list=tmpfiles, modules=modules, mail=args.mail, name=args.name, queue=args.queue, walltime=args.walltime, params=args.params, address=args.billing, threads=args.threads, max_running=cfg['max_running'])
 
     # Success
     print('\n')
