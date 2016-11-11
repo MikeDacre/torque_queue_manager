@@ -1,6 +1,8 @@
 Torque Queue Manager
 ====================
 
+This code will be moved to https://github.com/MikeDacre/fyrd shortly.
+
 Simple scripts for interacting with the Torque Queue.
 
 Designed for use primarily with SDSC's Gordon Compute Cluster, but it will work with
